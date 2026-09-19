@@ -6,6 +6,8 @@ import com.badlogic.gdx.graphics.g3d.*
 import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute
 import com.badlogic.gdx.graphics.g3d.environment.*
 import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder
+import com.badlogic.gdx.graphics.g3d.shaders.DefaultShader
+import com.badlogic.gdx.graphics.g3d.utils.DefaultShaderProvider
 import com.badlogic.gdx.graphics.VertexAttributes
 import com.badlogic.gdx.math.*
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
@@ -40,7 +42,14 @@ class SurvivalGame : ApplicationAdapter() {
     private var gameOver = false
 
     override fun create() {
-        batch = ModelBatch()
+        batch = ModelBatch(
+            DefaultShaderProvider(DefaultShader.Config().apply {
+                numDirectionalLights = 1
+                numPointLights = 0
+                numSpotLights = 0
+                numBones = 0
+            })
+        )
         models = GameModels()
         environment = Environment().apply {
             set(ColorAttribute(ColorAttribute.AmbientLight, 0.72f, 0.78f, 0.72f, 1f))
@@ -123,11 +132,11 @@ class SurvivalGame : ApplicationAdapter() {
         pulses.add(Pulse(Vector3(player).mulAdd(dir, 1.3f), models.pulse()))
     }
     private fun drawWorld() {
-        batch.render(models.ground)
+        batch.render(models.ground, environment)
         models.player.transform.setTranslation(player)
-        batch.render(models.player)
-        for (z in zombies) { batch.render(z.body); batch.render(z.head) }
-        for (p in pulses) batch.render(p.instance)
+        batch.render(models.player, environment)
+        for (z in zombies) { batch.render(z.body, environment); batch.render(z.head, environment) }
+        for (p in pulses) batch.render(p.instance, environment)
         for (prop in models.props) batch.render(prop)
     }
     private fun drawHud() {
