@@ -18,7 +18,6 @@ class AndroidLauncher : AndroidApplication() {
             useWakelock = false
             useGL30 = false
             numSamples = 0
-            useSnapshot = false
         }
 
         initialize(SurvivalGame(), config)
