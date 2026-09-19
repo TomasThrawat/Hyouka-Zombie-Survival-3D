@@ -513,7 +513,7 @@ class SurvivalGame : ApplicationAdapter() {
 
     private inner class GameAssets : Disposable {
         private val mb = ModelBuilder()
-        private val attr = VertexAttributes.Usage.Position or VertexAttributes.Usage.Normal
+        private val attr = (VertexAttributes.Usage.Position or VertexAttributes.Usage.Normal).toLong()
         private val models = ArrayList<Model>()
 
         private fun material(c: Color) = Material(ColorAttribute.createDiffuse(c))
