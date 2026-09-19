@@ -173,19 +173,19 @@ class SurvivalGame : ApplicationAdapter() {
         private val mb = ModelBuilder()
         private val attr = VertexAttributes.Usage.Position or VertexAttributes.Usage.Normal
         private fun mat(c: Color) = Material(ColorAttribute.createDiffuse(c))
-        val ground = ModelInstance(mb.createBox(52f, 0.2f, 52f, mat(Color(0.16f,0.20f,0.16f,1f)), attr))
-        val player = ModelInstance(mb.createCylinder(0.9f, 1.8f, 0.9f, 12, mat(Color(0.25f,0.75f,1f,1f)), attr))
+        val ground = ModelInstance(mb.createBox(52f, 0.2f, 52f, mat(Color(0.16f,0.20f,0.16f,1f)), attr.toLong()))
+        val player = ModelInstance(mb.createCylinder(0.9f, 1.8f, 0.9f, 12, mat(Color(0.25f,0.75f,1f,1f)), attr.toLong()))
         val props = ArrayList<ModelInstance>()
         init {
             for (i in 0 until 24) {
                 val x = (i * 17 % 47) - 23f
                 val z = (i * 31 % 47) - 23f
-                props += ModelInstance(mb.createBox(1.4f, 2f + (i % 3), 1.4f, mat(Color(0.24f,0.28f,0.30f,1f)), attr)).also { it.transform.setToTranslation(x,1f + (i%3)*0.5f,z) }
+                props += ModelInstance(mb.createBox(1.4f, 2f + (i % 3), 1.4f, mat(Color(0.24f,0.28f,0.30f,1f)), attr.toLong())).also { it.transform.setToTranslation(x,1f + (i%3)*0.5f,z) }
             }
         }
-        fun zombieBody() = ModelInstance(mb.createCylinder(1.0f, 1.8f, 1.0f, 10, mat(Color(0.35f,0.58f,0.20f,1f)), attr))
-        fun zombieHead() = ModelInstance(mb.createSphere(1.25f,1.25f,1.25f,12,12,mat(Color(0.48f,0.72f,0.25f,1f)),attr))
-        fun pulse() = ModelInstance(mb.createSphere(1f,1f,1f,12,12,mat(Color(0.25f,0.8f,1f,0.6f)),attr))
+        fun zombieBody() = ModelInstance(mb.createCylinder(1.0f, 1.8f, 1.0f, 10, mat(Color(0.35f,0.58f,0.20f,1f)), attr.toLong()))
+        fun zombieHead() = ModelInstance(mb.createSphere(1.25f,1.25f,1.25f,12,12,mat(Color(0.48f,0.72f,0.25f,1f)),attr.toLong()))
+        fun pulse() = ModelInstance(mb.createSphere(1f,1f,1f,12,12,mat(Color(0.25f,0.8f,1f,0.6f)),attr.toLong()))
         fun dispose() {}
     }
 }
