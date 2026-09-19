@@ -1,4 +1,5 @@
 plugins { id "com.android.application"; id "org.jetbrains.kotlin.android" }
+
 configurations.all {
     resolutionStrategy.force "androidx.core:core:1.16.0"
     resolutionStrategy.force "androidx.core:core-ktx:1.16.0"
@@ -7,6 +8,16 @@ configurations.all {
 android {
     namespace "com.tomasthrawat.hyoukazombiesurvival"
     compileSdk 35
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
+
     defaultConfig {
         applicationId "com.tomasthrawat.hyoukazombiesurvival"
         minSdk 23
@@ -16,6 +27,7 @@ android {
     }
     packaging { resources.excludes += ["META-INF/AL2.0", "META-INF/LGPL2.1"] }
 }
+
 dependencies {
     implementation project(":core")
     implementation "com.badlogicgames.gdx:gdx-backend-android:$gdxVersion"
