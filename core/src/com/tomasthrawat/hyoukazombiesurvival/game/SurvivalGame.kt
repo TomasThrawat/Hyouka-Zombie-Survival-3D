@@ -1,50 +1,31 @@
-
 package com.tomasthrawat.hyoukazombiesurvival.game
 
 import com.badlogic.gdx.ApplicationAdapter
 import com.badlogic.gdx.Gdx
 import com.badlogic.gdx.Input
+import com.badlogic.gdx.InputAdapter
 import com.badlogic.gdx.graphics.Color
 import com.badlogic.gdx.graphics.GL20
-import com.badlogic.gdx.graphics.PerspectiveCamera
-import com.badlogic.gdx.graphics.VertexAttributes
-import com.badlogic.gdx.graphics.g3d.Environment
-import com.badlogic.gdx.graphics.g3d.Material
-import com.badlogic.gdx.graphics.g3d.Model
-import com.badlogic.gdx.graphics.g3d.ModelBatch
-import com.badlogic.gdx.graphics.g3d.ModelInstance
-import com.badlogic.gdx.graphics.g3d.attributes.ColorAttribute
-import com.badlogic.gdx.graphics.g3d.environment.DirectionalLight
-import com.badlogic.gdx.graphics.g3d.shaders.DefaultShader
-import com.badlogic.gdx.graphics.g3d.utils.DefaultShaderProvider
-import com.badlogic.gdx.graphics.g3d.utils.ModelBuilder
+import com.badlogic.gdx.graphics.OrthographicCamera
 import com.badlogic.gdx.graphics.g2d.BitmapFont
 import com.badlogic.gdx.graphics.g2d.SpriteBatch
 import com.badlogic.gdx.graphics.glutils.ShapeRenderer
 import com.badlogic.gdx.math.MathUtils
-import com.badlogic.gdx.math.Vector3
-import com.badlogic.gdx.utils.Disposable
-import kotlin.math.cos
-import kotlin.math.sin
 import kotlin.math.sqrt
 
 class SurvivalGame : ApplicationAdapter() {
     private enum class State { MENU, PLAYING, PAUSED, GAME_OVER }
     private enum class PickupType { HEALTH, ENERGY, XP }
-    private enum class EffectType { PULSE, NOVA, WAVE, PICKUP }
 
-    private lateinit var batch: ModelBatch
-    private lateinit var environment: Environment
-    private lateinit var camera: PerspectiveCamera
-    private lateinit var ui: SpriteBatch
-    private lateinit var font: BitmapFont
+    private lateinit var camera: OrthographicCamera
     private lateinit var shapes: ShapeRenderer
-    private lateinit var assets: GameAssets
+    private lateinit var batch: SpriteBatch
+    private lateinit var font: BitmapFont
 
     private val player = Player()
-    private val zombies = ArrayList<Zombie>(48)
-    private val pickups = ArrayList<Pickup>(16)
-    private val effects = ArrayList<Effect>(24)
+    private val zombies = ArrayList<Zombie>(40)
+    private val pickups = ArrayList<Pickup>(20)
+    private val effects = ArrayList<Effect>(20)
 
     private var state = State.MENU
     private var wave = 1
@@ -52,45 +33,33 @@ class SurvivalGame : ApplicationAdapter() {
     private var kills = 0
     private var level = 1
     private var xp = 0f
-    private var xpToNext = 100f
+    private var xpNext = 100f
     private var waveTime = 0f
     private var spawnTimer = 0f
-    private var elapsed = 0f
     private var flash = 0f
-    private var saveTimer = 0f
-    private var joystickPointer = -1
-    private var lookPointer = -1
-    private var abilityPointer = -1
-    private var joyX = 0f
-    private var joyY = 0f
-    private var lastTouchX = 0f
-    private var lastTouchY = 0f
+    private var joystickId = -1
+    private var joystickX = 0f
+    private var joystickY = 0f
+
+    private val uiMatrix = com.badlogic.gdx.math.Matrix4()
+    private val worldW = 100f
+    private val worldH = 60f
 
     override fun create() {
-        batch = ModelBatch(DefaultShaderProvider(DefaultShader.Config().apply {
-            numDirectionalLights = 1
-            numPointLights = 0
-            numSpotLights = 0
-            numBones = 0
-        }))
-        environment = Environment().apply {
-            set(ColorAttribute(ColorAttribute.AmbientLight, 0.72f, 0.78f, 0.72f, 1f))
-            add(DirectionalLight().set(0.85f, 0.9f, 0.82f, -0.55f, -1f, -0.35f))
-        }
-        camera = PerspectiveCamera(67f, Gdx.graphics.width.toFloat(), Gdx.graphics.height.toFloat()).apply {
-            near = 0.15f
-            far = 110f
-        }
-        ui = SpriteBatch()
-        font = BitmapFont()
-        font.data.setScale(1.15f)
+        camera = OrthographicCamera(worldW, worldH)
+        camera.position.set(worldW / 2f, worldH / 2f, 0f)
+        camera.update()
+
         shapes = ShapeRenderer()
-        assets = GameAssets()
+        batch = SpriteBatch()
+        font = BitmapFont()
+        font.data.setScale(1.1f)
+
         Gdx.input.inputProcessor = GameInput()
-        resetRun()
+        reset()
     }
 
-    private fun resetRun() {
+    private fun reset() {
         player.reset()
         zombies.clear()
         pickups.clear()
@@ -100,47 +69,40 @@ class SurvivalGame : ApplicationAdapter() {
         kills = 0
         level = 1
         xp = 0f
-        xpToNext = 100f
+        xpNext = 100f
         waveTime = 0f
         spawnTimer = 0f
-        elapsed = 0f
         flash = 0f
-        saveTimer = 0f
-        joystickPointer = -1
-        lookPointer = -1
-        abilityPointer = -1
-        joyX = 0f
-        joyY = 0f
+        joystickId = -1
+        joystickX = 0f
+        joystickY = 0f
     }
 
     private fun startGame() {
-        resetRun()
+        reset()
         state = State.PLAYING
-        repeat(3) { spawnZombie() }
+        repeat(4) { spawnZombie() }
     }
 
     override fun render() {
         val dt = MathUtils.clamp(Gdx.graphics.deltaTime, 0f, 0.033f)
         if (state == State.PLAYING) update(dt)
-        drawWorld()
-        drawHud()
+        draw()
     }
 
     private fun update(dt: Float) {
-        elapsed += dt
         waveTime += dt
         spawnTimer += dt
         flash = maxOf(0f, flash - dt)
-        saveTimer += dt
 
         updatePlayer(dt)
         updateZombies(dt)
         updatePickups(dt)
         updateEffects(dt)
 
-        val targetCount = minOf(8 + wave * 2, 34)
-        val interval = maxOf(0.55f, 2.25f - wave * 0.075f)
-        if (spawnTimer >= interval && zombies.size < targetCount) {
+        val target = minOf(8 + wave * 2, 34)
+        val interval = maxOf(0.55f, 2.0f - wave * 0.07f)
+        if (spawnTimer >= interval && zombies.size < target) {
             spawnTimer = 0f
             spawnZombie()
         }
@@ -148,69 +110,62 @@ class SurvivalGame : ApplicationAdapter() {
         if (waveTime >= 30f) {
             wave++
             waveTime = 0f
-            spawnTimer = 0f
-            effects += Effect(player.pos.cpy(), 0f, 4.5f, EffectType.WAVE)
-            if (wave % 3 == 0) pickups += Pickup(randomPoint(), PickupType.ENERGY)
+            effects += Effect(player.x, player.y, 8f, 0.55f)
+            if (wave % 3 == 0) pickups += Pickup(randomX(), randomY(), PickupType.ENERGY)
         }
 
         if (player.health <= 0f) {
             player.health = 0f
             state = State.GAME_OVER
-        }
-
-        if (saveTimer >= 5f) {
-            saveTimer = 0f
             saveProgress()
         }
     }
 
     private fun updatePlayer(dt: Float) {
-        val forward = Vector3(-sin(player.yaw), 0f, -cos(player.yaw))
-        val right = Vector3(cos(player.yaw), 0f, -sin(player.yaw))
-        val move = Vector3(forward).scl(joyY).mulAdd(right, joyX)
-        if (move.len2() > 0.001f) {
-            move.nor()
-            player.pos.mulAdd(move, player.speed * dt)
+        var mx = joystickX
+        var my = joystickY
+        if (Gdx.input.isKeyPressed(Input.Keys.W)) my += 1f
+        if (Gdx.input.isKeyPressed(Input.Keys.S)) my -= 1f
+        if (Gdx.input.isKeyPressed(Input.Keys.A)) mx -= 1f
+        if (Gdx.input.isKeyPressed(Input.Keys.D)) mx += 1f
+
+        val len = sqrt(mx * mx + my * my)
+        if (len > 1f) {
+            mx /= len
+            my /= len
         }
-        player.pos.x = MathUtils.clamp(player.pos.x, -24f, 24f)
-        player.pos.z = MathUtils.clamp(player.pos.z, -24f, 24f)
-        player.energy = minOf(100f, player.energy + (7f + level * 0.25f) * dt)
-        player.health = minOf(player.maxHealth, player.health + 0.9f * dt)
+
+        player.x = MathUtils.clamp(player.x + mx * player.speed * dt, 2.5f, worldW - 2.5f)
+        player.y = MathUtils.clamp(player.y + my * player.speed * dt, 2.5f, worldH - 2.5f)
+        player.energy = minOf(100f, player.energy + (7f + level * 0.2f) * dt)
+        player.health = minOf(player.maxHealth, player.health + 0.5f * dt)
         player.pulseCooldown = maxOf(0f, player.pulseCooldown - dt)
         player.novaCooldown = maxOf(0f, player.novaCooldown - dt)
-
-        camera.position.set(
-            player.pos.x - sin(player.yaw) * 6.4f,
-            player.pos.y + 4.7f,
-            player.pos.z - cos(player.yaw) * 6.4f
-        )
-        camera.lookAt(player.pos.x, player.pos.y + 0.75f, player.pos.z)
-        camera.up.set(Vector3.Y)
-        camera.update()
     }
 
     private fun updateZombies(dt: Float) {
-        for (z in zombies) {
-            if (z.dead) continue
-            if (z.health <= 0f) {
-                killZombie(z)
+        val it = zombies.iterator()
+        while (it.hasNext()) {
+            val z = it.next()
+            if (z.dead) {
+                it.remove()
                 continue
             }
-            val dx = player.pos.x - z.pos.x
-            val dz = player.pos.z - z.pos.z
-            val d2 = dx * dx + dz * dz
-            if (d2 > 2.1f) {
+
+            val dx = player.x - z.x
+            val dy = player.y - z.y
+            val d2 = dx * dx + dy * dy
+            if (d2 > 2.25f) {
                 val inv = 1f / sqrt(maxOf(d2, 0.0001f))
-                z.pos.x += dx * inv * z.speed * dt
-                z.pos.z += dz * inv * z.speed * dt
+                z.x += dx * inv * z.speed * dt
+                z.y += dy * inv * z.speed * dt
             } else if (z.attackTimer <= 0f) {
                 player.health -= z.damage
                 z.attackTimer = 0.75f
-                flash = 0.18f
+                flash = 0.12f
             }
             z.attackTimer = maxOf(0f, z.attackTimer - dt)
         }
-        zombies.removeAll { it.dead }
     }
 
     private fun updatePickups(dt: Float) {
@@ -218,13 +173,15 @@ class SurvivalGame : ApplicationAdapter() {
         while (it.hasNext()) {
             val p = it.next()
             p.age += dt
-            if (p.pos.dst2(player.pos) < 2.0f) {
+            val dx = p.x - player.x
+            val dy = p.y - player.y
+            if (dx * dx + dy * dy < 2.6f) {
                 when (p.type) {
-                    PickupType.ENERGY -> player.energy = minOf(100f, player.energy + 35f)
                     PickupType.HEALTH -> player.health = minOf(player.maxHealth, player.health + 28f)
+                    PickupType.ENERGY -> player.energy = minOf(100f, player.energy + 35f)
                     PickupType.XP -> addXp(45f)
                 }
-                effects += Effect(p.pos.cpy(), 0f, 0.35f, EffectType.PICKUP)
+                effects += Effect(p.x, p.y, 2.2f, 0.35f)
                 it.remove()
             }
         }
@@ -235,13 +192,7 @@ class SurvivalGame : ApplicationAdapter() {
         while (it.hasNext()) {
             val e = it.next()
             e.age += dt
-            e.radius = when (e.type) {
-                EffectType.PULSE -> minOf(e.maxRadius, e.radius + 16f * dt)
-                EffectType.NOVA -> minOf(e.maxRadius, e.radius + 22f * dt)
-                EffectType.WAVE -> minOf(e.maxRadius, e.radius + 12f * dt)
-                EffectType.PICKUP -> e.radius + 2f * dt
-            }
-            if (e.age >= maxOf(e.life, 0.35f)) it.remove()
+            if (e.age >= e.life) it.remove()
         }
     }
 
@@ -249,53 +200,36 @@ class SurvivalGame : ApplicationAdapter() {
         if (state != State.PLAYING || player.pulseCooldown > 0f || player.energy < 25f) return
         player.energy -= 25f
         player.pulseCooldown = 0.45f
-        val center = player.pos.cpy().mulAdd(Vector3(-sin(player.yaw), 0f, -cos(player.yaw)), 1.25f)
-        val radius = 5.8f + level * 0.08f
-        effects += Effect(center, 0.2f, radius, EffectType.PULSE)
-        for (z in zombies) {
-            if (!z.dead && z.pos.dst2(center) <= radius * radius) {
-                z.health -= 2.4f + level * 0.45f
-                val push = Vector3(z.pos).sub(center)
-                push.y = 0f
-                if (push.len2() > 0.01f) z.pos.mulAdd(push.nor(), 1.0f)
-            }
-        }
+        val radius = 6.5f + level * 0.08f
+        effects += Effect(player.x, player.y, radius, 0.45f)
+        damageRadius(radius, 2.6f + level * 0.4f, true)
     }
 
     private fun nova() {
         if (state != State.PLAYING || player.novaCooldown > 0f || player.energy < 50f) return
         player.energy -= 50f
         player.novaCooldown = 4.5f
-        val radius = 9.5f + level * 0.12f
-        effects += Effect(player.pos.cpy(), 0.2f, radius, EffectType.NOVA)
+        val radius = 11f + level * 0.12f
+        effects += Effect(player.x, player.y, radius, 0.65f)
+        damageRadius(radius, 5.8f + level * 0.65f, false)
+    }
+
+    private fun damageRadius(radius: Float, damage: Float, knockback: Boolean) {
+        val r2 = radius * radius
         for (z in zombies) {
-            if (!z.dead && z.pos.dst2(player.pos) <= radius * radius) {
-                z.health -= 5.5f + level * 0.65f
+            if (z.dead) continue
+            val dx = z.x - player.x
+            val dy = z.y - player.y
+            val d2 = dx * dx + dy * dy
+            if (d2 <= r2) {
+                z.health -= damage
+                if (knockback && d2 > 0.01f) {
+                    val inv = 1f / sqrt(d2)
+                    z.x = MathUtils.clamp(z.x + dx * inv * 2.5f, 2f, worldW - 2f)
+                    z.y = MathUtils.clamp(z.y + dy * inv * 2.5f, 2f, worldH - 2f)
+                }
+                if (z.health <= 0f) killZombie(z)
             }
-        }
-    }
-
-    private fun spawnZombie() {
-        val angle = MathUtils.random(0f, MathUtils.PI2)
-        val radius = MathUtils.random(15f, 22.5f)
-        val p = Vector3(cos(angle) * radius, 0.9f, sin(angle) * radius)
-        val hp = 2.4f + wave * 0.45f
-        val speed = 1.05f + wave * 0.045f + MathUtils.random(0f, 0.35f)
-        zombies += Zombie(p, hp, speed, 5.5f + wave * 0.25f)
-    }
-
-    private fun randomPoint() = Vector3(MathUtils.random(-20f, 20f), 0.5f, MathUtils.random(-20f, 20f))
-
-    private fun addXp(amount: Float) {
-        xp += amount
-        while (xp >= xpToNext) {
-            xp -= xpToNext
-            level++
-            xpToNext = 100f + level * 35f
-            player.maxHealth += 6f
-            player.health = player.maxHealth
-            player.energy = 100f
-            effects += Effect(player.pos.cpy(), 0f, 4.5f, EffectType.NOVA)
         }
     }
 
@@ -305,112 +239,179 @@ class SurvivalGame : ApplicationAdapter() {
         kills++
         score += 10 + wave * 2
         addXp(22f + wave * 2f)
-        when (MathUtils.random(0, 9)) {
-            0 -> pickups += Pickup(z.pos.cpy().apply { y = 0.5f }, PickupType.HEALTH)
-            1 -> pickups += Pickup(z.pos.cpy().apply { y = 0.5f }, PickupType.ENERGY)
-            2 -> pickups += Pickup(z.pos.cpy().apply { y = 0.5f }, PickupType.XP)
+        when (MathUtils.random(0, 8)) {
+            0 -> pickups += Pickup(z.x, z.y, PickupType.HEALTH)
+            1 -> pickups += Pickup(z.x, z.y, PickupType.ENERGY)
+            2 -> pickups += Pickup(z.x, z.y, PickupType.XP)
         }
     }
 
-    private fun drawWorld() {
-        Gdx.gl.glClearColor(0.025f, 0.045f, 0.07f, 1f)
-        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT or GL20.GL_DEPTH_BUFFER_BIT)
-        batch.begin(camera)
-        batch.render(assets.ground, environment)
-        for (p in assets.props) batch.render(p, environment)
-
-        assets.player.transform.setToTranslation(player.pos.x, player.pos.y, player.pos.z)
-        batch.render(assets.player, environment)
-
-        for (z in zombies) {
-            assets.zombie.transform.setToTranslation(z.pos.x, z.pos.y, z.pos.z)
-            batch.render(assets.zombie, environment)
-            assets.zombieHead.transform.setToTranslation(z.pos.x, z.pos.y + 1.05f, z.pos.z)
-            batch.render(assets.zombieHead, environment)
+    private fun addXp(amount: Float) {
+        xp += amount
+        while (xp >= xpNext) {
+            xp -= xpNext
+            level++
+            xpNext = 100f + level * 35f
+            player.maxHealth += 6f
+            player.health = player.maxHealth
+            player.energy = 100f
+            effects += Effect(player.x, player.y, 5f, 0.55f)
         }
+    }
+
+    private fun spawnZombie() {
+        val edge = MathUtils.random(0, 3)
+        val x: Float
+        val y: Float
+        when (edge) {
+            0 -> { x = 2f; y = randomY() }
+            1 -> { x = worldW - 2f; y = randomY() }
+            2 -> { x = randomX(); y = 2f }
+            else -> { x = randomX(); y = worldH - 2f }
+        }
+        zombies += Zombie(
+            x, y,
+            2.6f + wave * 0.45f,
+            1.05f + wave * 0.045f + MathUtils.random(0f, 0.3f),
+            4.5f + wave * 0.35f
+        )
+    }
+
+    private fun randomX() = MathUtils.random(5f, worldW - 5f)
+    private fun randomY() = MathUtils.random(5f, worldH - 5f)
+
+    private fun draw() {
+        Gdx.gl.glClearColor(0.025f, 0.04f, 0.07f, 1f)
+        Gdx.gl.glClear(GL20.GL_COLOR_BUFFER_BIT)
+
+        camera.position.set(player.x, player.y, 0f)
+        camera.update()
+        shapes.projectionMatrix = camera.combined
+        shapes.begin(ShapeRenderer.ShapeType.Filled)
+
+        shapes.color = Color(0.055f, 0.10f, 0.075f, 1f)
+        shapes.rect(0f, 0f, worldW, worldH)
+
+        shapes.color = Color(0.09f, 0.16f, 0.11f, 1f)
+        for (x in 0..100 step 5) shapes.rect(x.toFloat(), 0f, 0.05f, worldH)
+        for (y in 0..60 step 5) shapes.rect(0f, y.toFloat(), worldW, 0.05f)
 
         for (p in pickups) {
-            val bob = 0.55f + sin(elapsed * 3f + p.age * 2f) * 0.12f
-            assets.pickup.transform.setToTranslation(p.pos.x, bob, p.pos.z)
-            batch.render(assets.pickup, environment)
+            shapes.color = when (p.type) {
+                PickupType.HEALTH -> Color(0.25f, 0.9f, 0.35f, 1f)
+                PickupType.ENERGY -> Color(0.25f, 0.75f, 1f, 1f)
+                PickupType.XP -> Color(1f, 0.75f, 0.2f, 1f)
+            }
+            shapes.circle(p.x, p.y, 0.62f + kotlin.math.sin(p.age * 5f) * 0.12f)
+        }
+
+        for (z in zombies) {
+            if (z.dead) continue
+            shapes.color = Color(0f, 0f, 0f, 0.25f)
+            shapes.ellipse(z.x - 0.9f, z.y - 0.35f, 1.8f, 0.7f)
+            shapes.color = Color(0.36f, 0.64f, 0.28f, 1f)
+            shapes.circle(z.x, z.y + 0.25f, 0.85f)
+            shapes.color = Color(0.46f, 0.72f, 0.34f, 1f)
+            shapes.circle(z.x, z.y + 1f, 0.52f)
+            shapes.color = Color(0.06f, 0.10f, 0.05f, 1f)
+            shapes.circle(z.x - 0.18f, z.y + 1.08f, 0.08f)
+            shapes.circle(z.x + 0.18f, z.y + 1.08f, 0.08f)
         }
 
         for (e in effects) {
-            assets.effect.transform.setToTranslation(e.pos.x, 0.12f, e.pos.z)
-            assets.effect.transform.setToScaling(e.radius, 0.08f, e.radius)
-            batch.render(assets.effect, environment)
+            val p = e.age / e.life
+            val alpha = 0.55f * (1f - p)
+            shapes.color = Color(0.25f, 0.75f, 1f, alpha)
+            shapes.circle(e.x, e.y, e.radius * p)
         }
-        batch.end()
+
+        shapes.color = Color(0f, 0f, 0f, 0.25f)
+        shapes.ellipse(player.x - 1.05f, player.y - 0.4f, 2.1f, 0.8f)
+        shapes.color = Color(0.25f, 0.65f, 1f, 1f)
+        shapes.circle(player.x, player.y + 0.35f, 0.95f)
+        shapes.color = Color(0.75f, 0.92f, 1f, 1f)
+        shapes.circle(player.x, player.y + 1f, 0.58f)
+        shapes.end()
+
+        drawHud()
     }
 
     private fun drawHud() {
         val w = Gdx.graphics.width.toFloat()
         val h = Gdx.graphics.height.toFloat()
+        uiMatrix.setToOrtho2D(0f, 0f, w, h)
 
+        shapes.projectionMatrix = uiMatrix
         shapes.begin(ShapeRenderer.ShapeType.Filled)
-        shapes.color = Color(0f, 0f, 0f, 0.34f)
-        shapes.rect(0f, h - 82f, w, 82f)
-        shapes.color = Color(0.05f, 0.8f, 0.4f, 0.85f)
-        shapes.rect(24f, h - 36f, 250f * (player.health / player.maxHealth), 12f)
-        shapes.color = Color(0.1f, 0.55f, 1f, 0.85f)
-        shapes.rect(24f, h - 58f, 250f * (player.energy / 100f), 10f)
-        shapes.color = Color(0.95f, 0.7f, 0.15f, 0.85f)
-        shapes.rect(24f, h - 74f, 250f * (xp / xpToNext), 7f)
+        shapes.color = Color(0f, 0f, 0f, 0.58f)
+        shapes.rect(0f, h - 96f, w, 96f)
+        drawBar(24f, h - 34f, 250f, 12f, player.health / player.maxHealth, Color(0.9f, 0.18f, 0.18f, 1f))
+        drawBar(24f, h - 56f, 250f, 10f, player.energy / 100f, Color(0.2f, 0.65f, 1f, 1f))
+        drawBar(24f, h - 78f, 250f, 8f, xp / xpNext, Color(1f, 0.75f, 0.2f, 1f))
+
+        if (state == State.PLAYING) {
+            shapes.color = Color(0.1f, 0.12f, 0.16f, 0.75f)
+            shapes.circle(105f, 105f, 58f)
+            shapes.color = Color(0.8f, 0.9f, 1f, 0.28f)
+            shapes.circle(105f + joystickX * 38f, 105f + joystickY * 38f, 22f)
+            shapes.color = if (player.pulseCooldown <= 0f && player.energy >= 25f) Color(0.2f, 0.75f, 1f, 0.65f) else Color(0.2f, 0.3f, 0.4f, 0.55f)
+            shapes.circle(w - 105f, 105f, 55f)
+            shapes.color = if (player.novaCooldown <= 0f && player.energy >= 50f) Color(0.7f, 0.35f, 1f, 0.65f) else Color(0.35f, 0.25f, 0.45f, 0.55f)
+            shapes.circle(w - 190f, 105f, 42f)
+        }
 
         if (state != State.PLAYING) {
-            shapes.color = Color(0f, 0f, 0f, 0.66f)
+            shapes.color = Color(0f, 0f, 0f, 0.72f)
             shapes.rect(0f, 0f, w, h)
-        } else {
-            shapes.color = Color(1f, 1f, 1f, 0.10f)
-            shapes.circle(105f, 105f, 64f)
-            shapes.color = Color(1f, 1f, 1f, 0.28f)
-            shapes.circle(105f + joyX * 38f, 105f + joyY * 38f, 22f)
-            shapes.color = Color(0.15f, 0.7f, 1f, 0.16f)
-            shapes.circle(w - 92f, 105f, 62f)
-            shapes.color = if (player.pulseCooldown <= 0f && player.energy >= 25f) Color(0.2f, 0.85f, 1f, 0.5f) else Color(0.35f, 0.35f, 0.45f, 0.35f)
-            shapes.circle(w - 92f, 105f, 48f)
-            shapes.color = if (player.novaCooldown <= 0f && player.energy >= 50f) Color(0.75f, 0.35f, 1f, 0.42f) else Color(0.35f, 0.35f, 0.45f, 0.25f)
-            shapes.circle(w - 180f, 105f, 38f)
         }
         shapes.end()
 
-        ui.begin()
+        batch.projectionMatrix = uiMatrix
+        batch.begin()
+        font.color = Color.WHITE
+        font.data.setScale(1f)
+        font.draw(batch, "WAVE " + wave + "   SCORE " + score + "   LEVEL " + level, 24f, h - 10f)
+        font.draw(batch, "HP " + player.health.toInt() + "   ENERGY " + player.energy.toInt() + "   XP " + xp.toInt() + "/" + xpNext.toInt(), 292f, h - 14f)
+
         when (state) {
             State.MENU -> {
-                font.data.setScale(2.4f)
-                font.draw(ui, "HYOUKA: SURVIVAL", w / 2f - 170f, h * 0.68f)
-                font.data.setScale(1.2f)
-                font.draw(ui, "3D ENERGY SURVIVAL", w / 2f - 112f, h * 0.61f)
-                font.data.setScale(1.5f)
-                font.draw(ui, "TAP TO START", w / 2f - 80f, h * 0.45f)
-                font.data.setScale(0.95f)
-                font.draw(ui, "Move: left joystick   Look: drag right side", w / 2f - 150f, h * 0.36f)
-                font.draw(ui, "Pulse: blue circle   Nova: purple circle", w / 2f - 145f, h * 0.31f)
+                font.data.setScale(2.3f)
+                font.draw(batch, "HYOUKA: SURVIVAL", w / 2f - 190f, h * 0.66f)
+                font.data.setScale(1.3f)
+                font.draw(batch, "ENERGY SURVIVAL", w / 2f - 105f, h * 0.58f)
+                font.data.setScale(1.1f)
+                font.draw(batch, "TAP TO START", w / 2f - 72f, h * 0.45f)
+                font.data.setScale(0.85f)
+                font.draw(batch, "Move: left joystick   Pulse: blue   Nova: purple", w / 2f - 170f, h * 0.38f)
             }
             State.PLAYING -> {
-                font.data.setScale(1.0f)
-                font.draw(ui, "WAVE " + wave + "   SCORE " + score + "   LV " + level, 24f, h - 14f)
-                font.draw(ui, "HP " + player.health.toInt() + "   ENERGY " + player.energy.toInt() + "   XP " + xp.toInt() + "/" + xpToNext.toInt(), 292f, h - 14f)
-                font.draw(ui, "PULSE", w - 120f, 88f)
-                font.draw(ui, "NOVA", w - 207f, 88f)
-                if (flash > 0f) font.draw(ui, "HIT!", w / 2f - 18f, h * 0.58f)
+                font.data.setScale(0.95f)
+                font.draw(batch, "PULSE", w - 130f, 98f)
+                font.draw(batch, "NOVA", w - 214f, 98f)
             }
             State.PAUSED -> {
                 font.data.setScale(2.2f)
-                font.draw(ui, "PAUSED", w / 2f - 72f, h * 0.6f)
-                font.data.setScale(1.2f)
-                font.draw(ui, "TAP TO RESUME", w / 2f - 85f, h * 0.5f)
+                font.draw(batch, "PAUSED", w / 2f - 68f, h * 0.58f)
+                font.data.setScale(1.1f)
+                font.draw(batch, "TAP TO RESUME", w / 2f - 85f, h * 0.48f)
             }
             State.GAME_OVER -> {
                 font.data.setScale(2.2f)
-                font.draw(ui, "RUN OVER", w / 2f - 80f, h * 0.62f)
-                font.data.setScale(1.2f)
-                font.draw(ui, "WAVE " + wave + "   SCORE " + score + "   KILLS " + kills, w / 2f - 120f, h * 0.54f)
-                font.draw(ui, "TAP TO PLAY AGAIN", w / 2f - 105f, h * 0.43f)
+                font.draw(batch, "RUN OVER", w / 2f - 82f, h * 0.62f)
+                font.data.setScale(1.15f)
+                font.draw(batch, "WAVE " + wave + "   SCORE " + score + "   KILLS " + kills, w / 2f - 145f, h * 0.52f)
+                font.draw(batch, "TAP TO PLAY AGAIN", w / 2f - 105f, h * 0.43f)
             }
         }
-        ui.end()
-        font.data.setScale(1.15f)
+        batch.end()
+        font.data.setScale(1.1f)
+    }
+
+    private fun drawBar(x: Float, y: Float, width: Float, height: Float, value: Float, color: Color) {
+        shapes.color = Color(0.12f, 0.14f, 0.18f, 1f)
+        shapes.rect(x, y, width, height)
+        shapes.color = color
+        shapes.rect(x, y, width * MathUtils.clamp(value, 0f, 1f), height)
     }
 
     private fun saveProgress() {
@@ -431,17 +432,17 @@ class SurvivalGame : ApplicationAdapter() {
 
     override fun dispose() {
         saveProgress()
-        batch.dispose()
-        assets.dispose()
-        ui.dispose()
-        font.dispose()
         shapes.dispose()
+        batch.dispose()
+        font.dispose()
     }
 
-    private inner class GameInput : com.badlogic.gdx.InputAdapter() {
+    private inner class GameInput : InputAdapter() {
         override fun touchDown(screenX: Int, screenY: Int, pointer: Int, button: Int): Boolean {
-            val w = Gdx.graphics.width
-            val h = Gdx.graphics.height
+            val w = Gdx.graphics.width.toFloat()
+            val h = Gdx.graphics.height.toFloat()
+            val y = h - screenY
+
             if (state == State.MENU || state == State.GAME_OVER) {
                 startGame()
                 return true
@@ -450,47 +451,37 @@ class SurvivalGame : ApplicationAdapter() {
                 state = State.PLAYING
                 return true
             }
-            val y = h - screenY
-            if (screenX > w * 0.70f && y < h * 0.30f) {
-                if (screenX > w * 0.82f) pulse() else nova()
-                abilityPointer = pointer
+
+            if (screenX < w * 0.48f && y < h * 0.52f) {
+                joystickId = pointer
+                updateJoystick(screenX, y)
                 return true
             }
-            if (screenX < w * 0.48f && y < h * 0.45f) {
-                joystickPointer = pointer
-                lastTouchX = screenX.toFloat()
-                lastTouchY = screenY.toFloat()
+            if (screenX > w * 0.82f && y < 180f) {
+                pulse()
                 return true
             }
-            lookPointer = pointer
-            lastTouchX = screenX.toFloat()
-            lastTouchY = screenY.toFloat()
+            if (screenX > w * 0.68f && screenX <= w * 0.82f && y < 180f) {
+                nova()
+                return true
+            }
             return true
         }
 
         override fun touchDragged(screenX: Int, screenY: Int, pointer: Int): Boolean {
-            if (pointer == joystickPointer) {
-                val dx = (screenX - lastTouchX) / 70f
-                val dy = (screenY - lastTouchY) / 70f
-                joyX = MathUtils.clamp(joyX + dx, -1f, 1f)
-                joyY = MathUtils.clamp(joyY - dy, -1f, 1f)
-            } else if (pointer == lookPointer) {
-                val dx = screenX - lastTouchX
-                player.yaw -= dx * 0.0065f
+            if (pointer == joystickId) {
+                updateJoystick(screenX, Gdx.graphics.height - screenY)
+                return true
             }
-            lastTouchX = screenX.toFloat()
-            lastTouchY = screenY.toFloat()
             return true
         }
 
         override fun touchUp(screenX: Int, screenY: Int, pointer: Int, button: Int): Boolean {
-            if (pointer == joystickPointer) {
-                joystickPointer = -1
-                joyX = 0f
-                joyY = 0f
+            if (pointer == joystickId) {
+                joystickId = -1
+                joystickX = 0f
+                joystickY = 0f
             }
-            if (pointer == lookPointer) lookPointer = -1
-            if (pointer == abilityPointer) abilityPointer = -1
             return true
         }
 
@@ -507,92 +498,62 @@ class SurvivalGame : ApplicationAdapter() {
                 pulse()
                 return true
             }
+            if (keycode == Input.Keys.N) {
+                nova()
+                return true
+            }
             return false
         }
-    }
 
-    private inner class GameAssets : Disposable {
-        private val mb = ModelBuilder()
-        private val attr = (VertexAttributes.Usage.Position or VertexAttributes.Usage.Normal).toLong()
-        private val models = ArrayList<Model>()
-
-        private fun material(c: Color) = Material(ColorAttribute.createDiffuse(c))
-
-        val ground: ModelInstance
-        val player: ModelInstance
-        val zombie: ModelInstance
-        val zombieHead: ModelInstance
-        val pickup: ModelInstance
-        val effect: ModelInstance
-        val props = ArrayList<ModelInstance>()
-
-        init {
-            val groundModel = mb.createBox(52f, 0.25f, 52f, material(Color(0.12f, 0.18f, 0.14f, 1f)), attr)
-            val playerModel = mb.createCylinder(0.9f, 1.8f, 0.9f, 10, material(Color(0.18f, 0.72f, 1f, 1f)), attr)
-            val zombieModel = mb.createCylinder(1.0f, 1.8f, 1.0f, 10, material(Color(0.34f, 0.68f, 0.25f, 1f)), attr)
-            val headModel = mb.createSphere(1.18f, 1.18f, 1.18f, 10, 10, material(Color(0.46f, 0.78f, 0.3f, 1f)), attr)
-            val pickupModel = mb.createSphere(0.7f, 0.7f, 0.7f, 8, 8, material(Color(0.2f, 0.85f, 1f, 1f)), attr)
-            val effectModel = mb.createCylinder(1f, 0.08f, 1f, 20, material(Color(0.25f, 0.75f, 1f, 0.55f)), attr)
-            models.addAll(listOf(groundModel, playerModel, zombieModel, headModel, pickupModel, effectModel))
-
-            ground = ModelInstance(groundModel).apply { transform.setToTranslation(0f, -0.15f, 0f) }
-            player = ModelInstance(playerModel)
-            zombie = ModelInstance(zombieModel)
-            zombieHead = ModelInstance(headModel)
-            pickup = ModelInstance(pickupModel)
-            effect = ModelInstance(effectModel)
-
-            for (i in 0 until 22) {
-                val x = ((i * 17) % 45) - 22f
-                val z = ((i * 29) % 45) - 22f
-                if (kotlin.math.abs(x) < 4f && kotlin.math.abs(z) < 4f) continue
-                val m = mb.createBox(
-                    1.2f + (i % 3) * 0.7f,
-                    1.0f + (i % 4) * 0.6f,
-                    1.2f + (i % 2) * 0.8f,
-                    material(if (i % 2 == 0) Color(0.22f, 0.27f, 0.3f, 1f) else Color(0.16f, 0.31f, 0.23f, 1f)),
-                    attr
-                )
-                models += m
-                props += ModelInstance(m).apply { transform.setToTranslation(x, 0.55f, z) }
-            }
-        }
-
-        override fun dispose() {
-            models.forEach { it.dispose() }
+        private fun updateJoystick(x: Int, y: Int) {
+            joystickX = MathUtils.clamp((x - 105f) / 50f, -1f, 1f)
+            joystickY = MathUtils.clamp((y - 105f) / 50f, -1f, 1f)
         }
     }
 
     private class Player {
-        val pos = Vector3(0f, 0.9f, 0f)
-        var yaw = 0f
+        var x = 50f
+        var y = 30f
         var health = 100f
         var maxHealth = 100f
         var energy = 100f
-        var speed = 4.5f
+        var speed = 8.5f
         var pulseCooldown = 0f
         var novaCooldown = 0f
+
         fun reset() {
-            pos.set(0f, 0.9f, 0f)
-            yaw = 0f
+            x = 50f
+            y = 30f
             health = 100f
             maxHealth = 100f
             energy = 100f
-            speed = 4.5f
+            speed = 8.5f
             pulseCooldown = 0f
             novaCooldown = 0f
         }
     }
 
-    private class Zombie(val pos: Vector3, var health: Float, val speed: Float, val damage: Float) {
+    private class Zombie(
+        var x: Float,
+        var y: Float,
+        var health: Float,
+        val speed: Float,
+        val damage: Float
+    ) {
         var attackTimer = 0f
         var dead = false
     }
 
-    private class Pickup(val pos: Vector3, val type: PickupType) { var age = 0f }
-
-    private class Effect(val pos: Vector3, val life: Float, val maxRadius: Float, val type: EffectType) {
+    private class Pickup(val x: Float, val y: Float, val type: PickupType) {
         var age = 0f
-        var radius = 0f
+    }
+
+    private class Effect(
+        val x: Float,
+        val y: Float,
+        val radius: Float,
+        val life: Float
+    ) {
+        var age = 0f
     }
 }
