@@ -10,14 +10,15 @@ class AndroidLauncher : AndroidApplication() {
         super.onCreate(savedInstanceState)
 
         val config = AndroidApplicationConfiguration().apply {
-            useImmersiveMode = false
-            numSamples = 0
+            useImmersiveMode = true
             useAccelerometer = false
             useCompass = false
             useGyroscope = false
             useRotationVectorSensor = false
-            useWakelock = true
+            useWakelock = false
             useGL30 = false
+            numSamples = 0
+            useSnapshot = false
         }
 
         initialize(SurvivalGame(), config)
