@@ -10,11 +10,7 @@ class AndroidLauncher : AndroidApplication() {
         super.onCreate(savedInstanceState)
 
         val config = AndroidApplicationConfiguration().apply {
-            // Use the most conservative Android graphics configuration for
-            // broad GLES2/GLES3 device compatibility.
             useImmersiveMode = false
-            hideStatusBar = true
-            hideNavBar = true
             numSamples = 0
             useAccelerometer = false
             useCompass = false
