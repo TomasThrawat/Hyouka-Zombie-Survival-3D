@@ -1,0 +1,3 @@
+plugins { id "org.jetbrains.kotlin.jvm" }
+dependencies { api "com.badlogicgames.gdx:gdx:$gdxVersion" }
+sourceSets.main.java.srcDirs = ["src"]
