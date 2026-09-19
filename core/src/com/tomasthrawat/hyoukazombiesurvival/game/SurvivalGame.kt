@@ -239,7 +239,7 @@ class SurvivalGame : ApplicationAdapter() {
         kills++
         score += 10 + wave * 2
         addXp(22f + wave * 2f)
-        when (MathUtils.random(0, 8)) {
+        when (MathUtils.random(0, 7)) {
             0 -> pickups += Pickup(z.x, z.y, PickupType.HEALTH)
             1 -> pickups += Pickup(z.x, z.y, PickupType.ENERGY)
             2 -> pickups += Pickup(z.x, z.y, PickupType.XP)
@@ -270,7 +270,8 @@ class SurvivalGame : ApplicationAdapter() {
             else -> { x = randomX(); y = worldH - 2f }
         }
         zombies += Zombie(
-            x, y,
+            x,
+            y,
             2.6f + wave * 0.45f,
             1.05f + wave * 0.045f + MathUtils.random(0f, 0.3f),
             4.5f + wave * 0.35f
@@ -289,7 +290,7 @@ class SurvivalGame : ApplicationAdapter() {
         shapes.projectionMatrix = camera.combined
         shapes.begin(ShapeRenderer.ShapeType.Filled)
 
-        shapes.color = Color(0.055f, 0.10f, 0.075f, 1f)
+        shapes.color = Color(0.055f, 0.01f, 0.075f, 1f)
         shapes.rect(0f, 0f, worldW, worldH)
 
         shapes.color = Color(0.09f, 0.16f, 0.11f, 1f)
@@ -370,8 +371,8 @@ class SurvivalGame : ApplicationAdapter() {
         batch.begin()
         font.color = Color.WHITE
         font.data.setScale(1f)
-        font.draw(batch, "WAVE " + wave + "   SCORE " + score + "   LEVEL " + level, 24f, h - 10f)
-        font.draw(batch, "HP " + player.health.toInt() + "   ENERGY " + player.energy.toInt() + "   XP " + xp.toInt() + "/" + xpNext.toInt(), 292f, h - 14f)
+        font.draw(batch, "WAVE " + wave + "    SCORE " + score + "    LEVEL " + level, 24f, h - 10f)
+        font.draw(batch, "HP " + player.health.toInt() + "    ENERGY " + player.energy.toInt() + "    XP " + xp.toInt() + "/" + xpNext.toInt(), 292f, h - 14f)
 
         when (state) {
             State.MENU -> {
@@ -382,7 +383,7 @@ class SurvivalGame : ApplicationAdapter() {
                 font.data.setScale(1.1f)
                 font.draw(batch, "TAP TO START", w / 2f - 72f, h * 0.45f)
                 font.data.setScale(0.85f)
-                font.draw(batch, "Move: left joystick   Pulse: blue   Nova: purple", w / 2f - 170f, h * 0.38f)
+                font.draw(batch, "Move: left joystick    Pulse: blue    Nova: purple", w / 2f - 170f, h * 0.38f)
             }
             State.PLAYING -> {
                 font.data.setScale(0.95f)
@@ -454,7 +455,7 @@ class SurvivalGame : ApplicationAdapter() {
 
             if (screenX < w * 0.48f && y < h * 0.52f) {
                 joystickId = pointer
-                updateJoystick(screenX, y)
+                updateJoystick(screenX, y.toInt())
                 return true
             }
             if (screenX > w * 0.82f && y < 180f) {
